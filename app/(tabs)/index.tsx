@@ -1,98 +1,194 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+/**
+ * Dashboard (Home) Screen — Shows nearby tasks, location status,
+ * and a FAB to add new tasks.
+ */
+import React, { useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  RefreshControl,
+  ActivityIndicator,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { useAuthStore } from '@/src/presentation/stores/useAuthStore';
+import { useTaskStore } from '@/src/presentation/stores/useTaskStore';
+import { useLocationStore } from '@/src/presentation/stores/useLocationStore';
+import { useLocation } from '@/src/presentation/hooks/useLocation';
+import { useNearbyTasks } from '@/src/presentation/hooks/useNearbyTasks';
+import { TaskCard } from '@/src/presentation/components/TaskCard';
+import { EmptyState } from '@/src/presentation/components/EmptyState';
+import { Colors } from '@/src/theme/colors';
+import { Typography } from '@/src/theme/typography';
+import { Spacing, Radius } from '@/src/theme/spacing';
+import { Shadows } from '@/src/theme/shadows';
+import { GeohashService } from '@/src/data/services/GeohashService';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+const geohashService = new GeohashService();
 
-export default function HomeScreen() {
+export default function DashboardScreen() {
+  const router = useRouter();
+  const { user } = useAuthStore();
+  const { currentLocation } = useLocation();
+  const { nearbyTasks, isLoading, refresh } = useNearbyTasks(5);
+
+  const getDistance = (taskLat: number, taskLng: number): number => {
+    if (!currentLocation) return Infinity;
+    return geohashService.distanceMeters(
+      { latitude: currentLocation.latitude, longitude: currentLocation.longitude },
+      { latitude: taskLat, longitude: taskLng },
+    );
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <View style={styles.container}>
+      {/* Location Status Bar */}
+      <View style={styles.locationBar}>
+        <View style={styles.locationDot} />
+        <Text style={styles.locationText}>
+          {currentLocation
+            ? `${currentLocation.latitude.toFixed(4)}, ${currentLocation.longitude.toFixed(4)}`
+            : 'Getting location...'}
+        </Text>
+        {currentLocation && (
+          <View style={styles.accuracyChip}>
+            <Text style={styles.accuracyText}>
+              ±{Math.round(currentLocation.accuracy || 0)}m
+            </Text>
+          </View>
+        )}
+      </View>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+      {/* Nearby Tasks Header */}
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Nearby Tasks</Text>
+        <Text style={styles.sectionCount}>
+          {nearbyTasks.length} {nearbyTasks.length === 1 ? 'task' : 'tasks'}
+        </Text>
+      </View>
+
+      {/* Task List */}
+      <FlatList
+        data={nearbyTasks}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <TaskCard
+            task={item}
+            distanceMeters={getDistance(item.location.latitude, item.location.longitude)}
+            onComplete={() => useTaskStore.getState().completeTask(item.id)}
+            onDelete={() => useTaskStore.getState().deleteTask(item.id)}
+          />
+        )}
+        contentContainerStyle={styles.listContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={isLoading}
+            onRefresh={refresh}
+            tintColor={Colors.primary}
+          />
+        }
+        ListEmptyComponent={
+          !isLoading ? (
+            <EmptyState
+              icon="location-outline"
+              title="No nearby tasks"
+              description="Create a task with a location to get reminded when you're nearby"
+              actionLabel="Add Task"
+              onAction={() => router.push('/add-task')}
+            />
+          ) : (
+            <View style={styles.loadingCenter}>
+              <ActivityIndicator size="large" color={Colors.primary} />
+            </View>
+          )
+        }
+      />
+
+      {/* FAB */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => router.push('/add-task')}
+        activeOpacity={0.85}
+      >
+        <Ionicons name="add" size={28} color={Colors.onPrimary} />
+      </TouchableOpacity>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  container: {
+    flex: 1,
+    backgroundColor: Colors.surface,
+  },
+  locationBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    backgroundColor: Colors.surfaceContainer,
+    gap: Spacing.sm,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  locationDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.secondary,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
+  locationText: {
+    ...Typography.bodySmall,
+    color: Colors.onSurfaceVariant,
+    flex: 1,
+  },
+  accuracyChip: {
+    backgroundColor: Colors.secondaryContainer,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: Radius.full,
+  },
+  accuracyText: {
+    ...Typography.labelSmall,
+    color: Colors.secondary,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.md,
+  },
+  sectionTitle: {
+    ...Typography.titleLarge,
+    color: Colors.onSurface,
+  },
+  sectionCount: {
+    ...Typography.bodySmall,
+    color: Colors.onSurfaceVariant,
+  },
+  listContent: {
+    flexGrow: 1,
+    paddingBottom: 100,
+  },
+  loadingCenter: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 100,
+  },
+  fab: {
     position: 'absolute',
+    bottom: 24,
+    right: 24,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Shadows.level3,
   },
 });

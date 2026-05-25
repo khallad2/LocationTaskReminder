@@ -1,24 +1,65 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
+/**
+ * Root Layout — Handles auth state and routes to (auth) or (tabs) groups.
+ */
+import { useEffect } from 'react';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
-
-import { useColorScheme } from '@/hooks/use-color-scheme';
-
-export const unstable_settings = {
-  anchor: '(tabs)',
-};
+import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { useAuth } from '@/src/presentation/hooks/useAuth';
+import { Colors } from '@/src/theme/colors';
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
+  const { user, isLoading, isAuthenticated } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isLoading) return;
+
+    const inAuthGroup = segments[0] === '(auth)';
+
+    if (!isAuthenticated && !inAuthGroup) {
+      router.replace('/(auth)/login');
+    } else if (isAuthenticated && inAuthGroup) {
+      router.replace('/(tabs)');
+    }
+  }, [isAuthenticated, isLoading, segments]);
+
+  if (isLoading) {
+    return (
+      <View style={styles.loader}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+        <StatusBar style="dark" />
+      </View>
+    );
+  }
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+    <>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(auth)" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen
+          name="add-task"
+          options={{
+            presentation: 'modal',
+            headerShown: true,
+            headerTitle: 'New Task',
+            headerTintColor: Colors.primary,
+            headerStyle: { backgroundColor: Colors.surface },
+          }}
+        />
       </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+      <StatusBar style="dark" />
+    </>
   );
 }
+
+const styles = StyleSheet.create({
+  loader: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+  },
+});
