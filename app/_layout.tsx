@@ -7,6 +7,8 @@ import { StatusBar } from 'expo-status-bar';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { useAuth } from '@/src/presentation/hooks/useAuth';
 import { Colors } from '@/src/theme/colors';
+// Bootstrap DI — must run before any store/hook accesses use cases
+import '@/src/infrastructure/di/container';
 
 export default function RootLayout() {
   const { user, isLoading, isAuthenticated } = useAuth();

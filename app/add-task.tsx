@@ -10,9 +10,7 @@ import {
 } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuthStore } from '@/src/presentation/stores/useAuthStore';
-import { useTaskStore } from '@/src/presentation/stores/useTaskStore';
-import { useLocationStore } from '@/src/presentation/stores/useLocationStore';
+import { useAddTaskViewModel } from '@/src/presentation/hooks/useAddTaskViewModel';
 import { TaskCategory } from '@/src/domain/entities/Task';
 import { Colors } from '@/src/theme/colors';
 import { Typography } from '@/src/theme/typography';
@@ -28,75 +26,14 @@ const CATEGORIES: { key: TaskCategory; label: string; icon: string }[] = [
 const RADIUS_OPTIONS = [100, 250, 500, 1000];
 
 export default function AddTaskScreen() {
-  const router = useRouter();
-  const { user } = useAuthStore();
-  const { addTask, isLoading, error: taskError, clearError } = useTaskStore();
-
-  // Read location directly from the global store (shared with Dashboard)
-  const currentLocation = useLocationStore((s) => s.currentLocation);
-  const locationError = useLocationStore((s) => s.error);
-  const fetchCurrentLocation = useLocationStore((s) => s.fetchCurrentLocation);
-  const requestPermissions = useLocationStore((s) => s.requestPermissions);
-
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [locationName, setLocationName] = useState('Current Location');
-  const [category, setCategory] = useState<TaskCategory>('personal');
-  const [radius, setRadius] = useState(250);
-  const [localError, setLocalError] = useState<string | null>(null);
-
-  // Manual coordinates (fallback when GPS unavailable)
-  const [manualLat, setManualLat] = useState('');
-  const [manualLng, setManualLng] = useState('');
-
-  // If no location yet, attempt to fetch it on mount
-  useEffect(() => {
-    if (!currentLocation) {
-      (async () => {
-        await requestPermissions();
-        await fetchCurrentLocation();
-      })();
-    }
-  }, []);
-
-  const resolvedLat = currentLocation?.latitude ?? (manualLat ? parseFloat(manualLat) : NaN);
-  const resolvedLng = currentLocation?.longitude ?? (manualLng ? parseFloat(manualLng) : NaN);
-  const hasLocation = !isNaN(resolvedLat) && !isNaN(resolvedLng);
-
-  const handleSubmit = async () => {
-    setLocalError(null);
-    clearError();
-
-    if (!title.trim() || title.trim().length < 2) {
-      setLocalError('Title must be at least 2 characters');
-      return;
-    }
-    if (!user) {
-      setLocalError('Please sign in first');
-      return;
-    }
-    if (!hasLocation) {
-      setLocalError('Location is required. Grant GPS permissions or enter coordinates manually.');
-      return;
-    }
-
-    const success = await addTask({
-      userId: user.uid,
-      title: title.trim(),
-      description: description.trim(),
-      locationName,
-      location: { latitude: resolvedLat, longitude: resolvedLng },
-      reminderRadiusMeters: radius,
-      category,
-    });
-
-    if (success) {
-      router.back();
-    }
-    // If !success, error is shown from taskError in the store
-  };
-
-  const displayError = localError || taskError;
+  const {
+    title, description, locationName, category, radius,
+    manualLat, manualLng, currentLocation, hasLocation, resolvedLat, resolvedLng,
+    isLoading, displayError,
+    setTitle, setDescription, setLocationName, setCategory, setRadius,
+    setManualLat, setManualLng,
+    handleSubmit, clearLocalError
+  } = useAddTaskViewModel();
 
   return (
     <>
@@ -107,7 +44,7 @@ export default function AddTaskScreen() {
           <View style={s.errorBanner}>
             <Ionicons name="alert-circle" size={16} color={Colors.error} />
             <Text style={s.errorText}>{displayError}</Text>
-            <TouchableOpacity onPress={() => { setLocalError(null); clearError(); }}>
+            <TouchableOpacity onPress={() => clearLocalError()}>
               <Ionicons name="close" size={16} color={Colors.error} />
             </TouchableOpacity>
           </View>

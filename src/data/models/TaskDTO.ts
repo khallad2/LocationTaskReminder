@@ -28,7 +28,6 @@ export function toTask(id: string, dto: TaskDTO): Task {
     description: dto.description,
     locationName: dto.locationName,
     location: { latitude: dto.lat, longitude: dto.lng },
-    geohash: dto.geohash,
     reminderRadiusMeters: dto.reminderRadiusMeters,
     category: dto.category,
     status: dto.status,
@@ -38,7 +37,7 @@ export function toTask(id: string, dto: TaskDTO): Task {
   };
 }
 
-export function toDTO(task: Omit<Task, 'id'>): TaskDTO {
+export function toDTO(task: Omit<Task, 'id'>, geohash: string): TaskDTO {
   return {
     userId: task.userId,
     title: task.title,
@@ -46,7 +45,7 @@ export function toDTO(task: Omit<Task, 'id'>): TaskDTO {
     locationName: task.locationName,
     lat: task.location.latitude,
     lng: task.location.longitude,
-    geohash: task.geohash,
+    geohash,
     reminderRadiusMeters: task.reminderRadiusMeters,
     category: task.category,
     status: task.status,

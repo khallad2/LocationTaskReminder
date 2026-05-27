@@ -19,7 +19,6 @@ export interface Task {
   description: string;
   locationName: string;
   location: GeoPoint;
-  geohash: string;
   reminderRadiusMeters: number;
   category: TaskCategory;
   status: TaskStatus;
@@ -36,7 +35,6 @@ export function createTask(params: {
   description: string;
   locationName: string;
   location: GeoPoint;
-  geohash: string;
   reminderRadiusMeters: number;
   category: TaskCategory;
   dueDate?: Date;

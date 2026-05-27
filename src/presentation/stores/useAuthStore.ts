@@ -1,11 +1,27 @@
 /**
  * useAuthStore — Zustand store for authentication state.
+ * Dependencies are injected by the DI container.
  */
 import { create } from 'zustand';
 import { User } from '../../domain/entities/User';
-import { container } from '../../infrastructure/di/container';
+import { LoginUseCase, RegisterUseCase } from '../../domain/usecases/LoginUseCase';
+import {
+  SignInWithGoogleUseCase,
+  SignInAnonymouslyUseCase,
+  SignOutUseCase,
+  SubscribeToAuthStateUseCase
+} from '../../domain/usecases/AuthUseCases';
 
-interface AuthState {
+export interface AuthStoreDeps {
+  loginUseCase: LoginUseCase | null;
+  registerUseCase: RegisterUseCase | null;
+  signInWithGoogleUseCase: SignInWithGoogleUseCase | null;
+  signInAnonymouslyUseCase: SignInAnonymouslyUseCase | null;
+  signOutUseCase: SignOutUseCase | null;
+  subscribeToAuthStateUseCase: SubscribeToAuthStateUseCase | null;
+}
+
+interface AuthState extends AuthStoreDeps {
   user: User | null;
   isLoading: boolean;
   error: string | null;
@@ -20,7 +36,14 @@ interface AuthState {
   initialize: () => () => void;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
+  loginUseCase: null,
+  registerUseCase: null,
+  signInWithGoogleUseCase: null,
+  signInAnonymouslyUseCase: null,
+  signOutUseCase: null,
+  subscribeToAuthStateUseCase: null,
+
   user: null,
   isLoading: true,
   error: null,
@@ -28,7 +51,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   login: async (email, password) => {
     set({ isLoading: true, error: null });
     try {
-      const user = await container.loginUseCase.execute(email, password);
+      const { loginUseCase } = get();
+      if (!loginUseCase) throw new Error('loginUseCase not injected');
+
+      const user = await loginUseCase.execute(email, password);
       set({ user, isLoading: false });
     } catch (err: any) {
       set({ error: err.message || 'Login failed', isLoading: false });
@@ -38,7 +64,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   register: async (email, password) => {
     set({ isLoading: true, error: null });
     try {
-      const user = await container.registerUseCase.execute(email, password);
+      const { registerUseCase } = get();
+      if (!registerUseCase) throw new Error('registerUseCase not injected');
+
+      const user = await registerUseCase.execute(email, password);
       set({ user, isLoading: false });
     } catch (err: any) {
       set({ error: err.message || 'Registration failed', isLoading: false });
@@ -48,7 +77,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   signInWithGoogle: async () => {
     set({ isLoading: true, error: null });
     try {
-      const user = await container.authRepository.signInWithGoogle();
+      const { signInWithGoogleUseCase } = get();
+      if (!signInWithGoogleUseCase) throw new Error('signInWithGoogleUseCase not injected');
+
+      const user = await signInWithGoogleUseCase.execute();
       set({ user, isLoading: false });
     } catch (err: any) {
       set({ error: err.message || 'Google sign-in failed', isLoading: false });
@@ -58,7 +90,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   signInAnonymously: async () => {
     set({ isLoading: true, error: null });
     try {
-      const user = await container.authRepository.signInAnonymously();
+      const { signInAnonymouslyUseCase } = get();
+      if (!signInAnonymouslyUseCase) throw new Error('signInAnonymouslyUseCase not injected');
+
+      const user = await signInAnonymouslyUseCase.execute();
       set({ user, isLoading: false });
     } catch (err: any) {
       set({ error: err.message || 'Anonymous sign-in failed', isLoading: false });
@@ -68,7 +103,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   signOut: async () => {
     set({ isLoading: true });
     try {
-      await container.authRepository.signOut();
+      const { signOutUseCase } = get();
+      if (!signOutUseCase) throw new Error('signOutUseCase not injected');
+
+      await signOutUseCase.execute();
       set({ user: null, isLoading: false });
     } catch (err: any) {
       set({ error: err.message, isLoading: false });
@@ -78,9 +116,16 @@ export const useAuthStore = create<AuthState>((set) => ({
   clearError: () => set({ error: null }),
 
   initialize: () => {
-    const unsubscribe = container.authRepository.onAuthStateChanged((user) => {
+    const { subscribeToAuthStateUseCase } = get();
+    if (!subscribeToAuthStateUseCase) throw new Error('subscribeToAuthStateUseCase not injected');
+
+    const unsubscribe = subscribeToAuthStateUseCase.execute((user) => {
       set({ user, isLoading: false });
     });
     return unsubscribe;
   },
 }));
+
+export const injectAuthStoreDeps = (deps: AuthStoreDeps) => {
+  useAuthStore.setState(deps);
+};

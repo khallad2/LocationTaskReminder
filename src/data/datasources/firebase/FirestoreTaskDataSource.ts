@@ -28,7 +28,8 @@ export class FirestoreTaskDataSource {
   private geohashService = new GeohashService();
 
   async create(task: Omit<Task, 'id'>): Promise<Task> {
-    const dto = toDTO(task);
+    const geohash = this.geohashService.encode(task.location);
+    const dto = toDTO(task, geohash);
     const docRef = await addDoc(collection(db, TASKS_COLLECTION), dto);
     return toTask(docRef.id, dto);
   }
@@ -102,7 +103,8 @@ export class FirestoreTaskDataSource {
   }
 
   async update(task: Task): Promise<void> {
-    const dto = toDTO(task);
+    const geohash = this.geohashService.encode(task.location);
+    const dto = toDTO(task, geohash);
     await updateDoc(doc(db, TASKS_COLLECTION, task.id), {
       ...dto,
       updatedAt: Date.now(),
